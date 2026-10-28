@@ -64,7 +64,10 @@
         <h3>{{ g.title }}</h3>
         {% for f in g.fields %}
         <div class="field">
-          {% if f.kind == 'select' %}
+          {% if f.kind == 'model_select' %}
+            <label>{{ f.label }}</label>
+            <select name="{{ f.name }}" id="model_select"></select>
+          {% elif f.kind == 'select' %}
             <label>{{ f.label }}</label>
             <select name="{{ f.name }}">{% for o in f.options %}<option{% if o == f.default %} selected{% endif %}>{{ o }}</option>{% endfor %}</select>
           {% elif f.kind == 'radio' %}
@@ -122,6 +125,16 @@ document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () =>
   document.getElementById(t.dataset.page).classList.add("active");
   if (t.dataset.page === "p2") drawCharts();
 }));
+
+// phone model list depends on the chosen brand
+const BRAND_MODELS = {{ brand_models|tojson }};
+const brandSel = document.querySelector('select[name="brand"]');
+const modelSel = document.getElementById("model_select");
+function fillModels() {
+  const list = BRAND_MODELS[brandSel.value] || [];
+  modelSel.innerHTML = list.map(m => "<option>" + m + "</option>").join("");
+}
+if (modelSel && brandSel) { brandSel.addEventListener("change", fillModels); fillModels(); }
 
 // slider <-> number box sync
 document.querySelectorAll(".field").forEach(f => {
