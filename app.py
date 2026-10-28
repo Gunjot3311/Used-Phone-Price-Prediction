@@ -10,7 +10,7 @@ meta = json.load(open("meta.json"))
 extras = json.load(open("extras.json")) if os.path.exists("extras.json") else None
 
 LABELS = {
-    "brand": "Brand", "os_type": "OS Type", "condition": "Physical Condition",
+    "brand": "Brand", "model": "Phone Model", "os_type": "OS Type", "condition": "Physical Condition",
     "city_tier": "City Tier", "seller_type": "Seller Type",
     "release_year": "Release Year", "purchase_year": "Purchase Year",
     "ram_gb": "RAM (GB)", "storage_gb": "Storage (GB)",
@@ -27,7 +27,7 @@ LABELS = {
 
 # Which fields go in which panel (any column not listed lands in the last panel)
 GROUPS = [
-    ("Phone Specs", ["brand", "os_type", "release_year", "ram_gb", "storage_gb",
+    ("Phone Specs", ["brand", "model", "os_type", "release_year", "ram_gb", "storage_gb",
                      "screen_size_inches", "battery_capacity"]),
     ("Condition & Age", ["condition", "original_price", "purchase_year", "age_months",
                          "battery_health", "city_tier"]),
@@ -46,6 +46,8 @@ def fmt(x):
 
 def build_field(col):
     label = LABELS.get(col, col.replace("_", " ").title())
+    if col == "model" and meta.get("brand_models"):
+        return {"name": col, "label": label, "kind": "model_select"}
     if col in meta["cat"]:
         opts = meta["cat"][col]
         return {"name": col, "label": label, "kind": "select", "options": opts, "default": opts[0]}
@@ -73,7 +75,8 @@ def build_groups():
 
 @app.route("/")
 def home():
-    return render_template("index.html", groups=build_groups(), extras=extras)
+    return render_template("index.html", groups=build_groups(), extras=extras,
+                           brand_models=meta.get("brand_models", {}))
 
 
 @app.route("/predict", methods=["POST"])
