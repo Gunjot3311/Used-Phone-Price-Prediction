@@ -34,7 +34,8 @@
   .result .lbl{font-size:13px;margin-bottom:6px}
   #out{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:20px;font-weight:700;color:var(--muted);min-height:44px}
   #out.done{color:#fff}
-  .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:14px}
+  .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px}
+  .cwrap{position:relative;height:280px}
   .chartbox{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
   .chartbox h3{margin:0 0 10px;font-size:14px}
   .tablewrap{overflow:auto;max-height:560px;background:var(--panel);border:1px solid var(--line);border-radius:10px}
@@ -100,11 +101,7 @@
 <!-- TAB 2 -->
 <div class="page" id="p2">
   {% if extras %}
-  <div class="charts">
-    <div class="chartbox"><h3>Average resale price by brand</h3><canvas id="c1"></canvas></div>
-    <div class="chartbox"><h3>Average resale price by condition</h3><canvas id="c2"></canvas></div>
-    <div class="chartbox"><h3>Average resale price by phone age (months)</h3><canvas id="c3"></canvas></div>
-  </div>
+  <div class="charts" id="charts"></div>
   {% else %}<div class="note">Charts need <code>extras.json</code>. Run the extra Colab cell and upload that file to GitHub.</div>{% endif %}
 </div>
 
@@ -159,20 +156,45 @@ document.getElementById("f").addEventListener("submit", async e => {
   } catch (err) { out.textContent = "Something went wrong."; }
 });
 
-// charts
+// charts (9 of them; any chart whose data is missing from extras.json is skipped)
 let drawn = false;
+const PALETTE = ["#06b6d4", "#22d3ee", "#0891b2", "#67e8f9", "#155e75", "#a5f3fc"];
 function drawCharts() {
   if (drawn || !EXTRAS) return; drawn = true;
   Chart.defaults.color = "#9ca3af"; Chart.defaults.borderColor = "#374151";
-  const bar = (id, obj) => new Chart(document.getElementById(id), {
-    type: "bar", data: {labels: Object.keys(obj), datasets: [{data: Object.values(obj), backgroundColor: "#06b6d4"}]},
-    options: {plugins: {legend: {display: false}}}});
-  bar("c1", EXTRAS.brand_avg);
-  bar("c2", EXTRAS.condition_avg);
-  const keys = Object.keys(EXTRAS.age_avg).sort((a, b) => a - b);
-  new Chart(document.getElementById("c3"), {
-    type: "line", data: {labels: keys, datasets: [{data: keys.map(k => EXTRAS.age_avg[k]), borderColor: "#06b6d4", tension: .3}]},
-    options: {plugins: {legend: {display: false}}}});
+  const fromObj = o => ({labels: Object.keys(o), values: Object.values(o)});
+  const sortedObj = o => { const k = Object.keys(o).sort((a, b) => a - b); return {labels: k, values: k.map(x => o[x])}; };
+  const specs = [
+    {title: "Average resale price by brand", type: "bar", d: EXTRAS.brand_avg && fromObj(EXTRAS.brand_avg), y: "Avg resale price"},
+    {title: "Average resale price by condition", type: "bar", d: EXTRAS.condition_avg && fromObj(EXTRAS.condition_avg), y: "Avg resale price"},
+    {title: "Average resale price by phone age (months)", type: "line", d: EXTRAS.age_avg && sortedObj(EXTRAS.age_avg), x: "Age (months)", y: "Avg resale price"},
+    {title: "Average resale price vs original price", type: "line", d: EXTRAS.orig_vs_resale, x: "Original price range", y: "Avg resale price"},
+    {title: "Resale price distribution (number of phones)", type: "bar", d: EXTRAS.price_hist, x: "Resale price range", y: "Number of phones"},
+    {title: "Average resale price by battery health (%)", type: "line", d: EXTRAS.battery_avg, x: "Battery health", y: "Avg resale price"},
+    {title: "Average resale price by storage (GB)", type: "bar", d: EXTRAS.storage_avg && sortedObj(EXTRAS.storage_avg), x: "Storage (GB)", y: "Avg resale price"},
+    {title: "Top 10 phone models by average resale price", type: "bar", horizontal: true, d: EXTRAS.top_models && fromObj(EXTRAS.top_models), x: "Avg resale price"},
+    {title: "Share of phones by condition", type: "doughnut", d: EXTRAS.condition_count && fromObj(EXTRAS.condition_count)},
+  ];
+  const holder = document.getElementById("charts");
+  specs.filter(s => s.d).forEach(s => {
+    const box = document.createElement("div"); box.className = "chartbox";
+    box.innerHTML = "<h3>" + s.title + "</h3><div class='cwrap'><canvas></canvas></div>";
+    holder.appendChild(box);
+    const isRound = s.type === "doughnut";
+    const axisTitle = t => t ? {display: true, text: t} : {display: false};
+    new Chart(box.querySelector("canvas"), {
+      type: s.type,
+      data: {labels: s.d.labels, datasets: [{
+        data: s.d.values,
+        backgroundColor: isRound ? PALETTE : "#06b6d4",
+        borderColor: isRound ? "#1f2937" : "#06b6d4", tension: .3, pointRadius: 3}]},
+      options: Object.assign({responsive: true, maintainAspectRatio: false,
+        plugins: {legend: {display: isRound, position: "bottom"}}},
+        isRound ? {} : {indexAxis: s.horizontal ? "y" : "x", scales: {
+          x: {title: axisTitle(s.x)},
+          y: {title: axisTitle(s.y), ticks: {callback: v => isNaN(v) ? v : Number(v).toLocaleString()}}}})
+    });
+  });
 }
 
 // dataset preview
